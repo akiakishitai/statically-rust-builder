@@ -1,0 +1,8 @@
+---
+extends: default
+rules:
+  comments:
+    level: warning
+    require-starting-space: false
+  line-length:
+    max: 100
