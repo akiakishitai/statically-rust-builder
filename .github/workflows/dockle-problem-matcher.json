@@ -1,0 +1,15 @@
+{
+  "problemMatcher": [
+    {
+      "owner": "dockle",
+      "pattern": [
+        {
+          "regexp": "^(FATAL|WARN)\\s+ \\- (.+\\d+): (.+)$",
+          "severity": 1,
+          "code": 2,
+          "message": 3
+        }
+      ]
+    }
+  ]
+}
