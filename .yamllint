@@ -1,5 +1,9 @@
 ---
 extends: default
+
+ignore: |
+  .github/workflows/*.yml
+
 rules:
   comments:
     level: warning

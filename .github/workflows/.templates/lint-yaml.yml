@@ -1,0 +1,16 @@
+---
+name: Lint yaml
+"on":
+  pull_request:
+    paths:
+      - "**.ya?ml"
+
+jobs:
+  yamllint:
+    name: yaml / lint
+    steps:
+      - name: yamllint
+        uses: reviewdog/action-yamllint@v1.4
+        with:
+          fail_on_error: true
+
