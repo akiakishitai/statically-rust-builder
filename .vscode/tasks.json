@@ -1,0 +1,22 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Generate Github Workflows",
+      "type": "shell",
+      "detail": "from YAML template files",
+      "command": "ytt",
+      "args": [
+        "template",
+        "--file=.github/workflows/.templates",
+        "--output-files=.github/workflows/"
+      ],
+    },
+    {
+      "label": "Lint yaml",
+      "type": "shell",
+      "command": "yamllint",
+      "args": ["."]
+    }
+  ]
+}

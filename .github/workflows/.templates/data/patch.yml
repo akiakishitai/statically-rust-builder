@@ -1,0 +1,19 @@
+#! Common configures
+
+#@ load("@ytt:overlay", "overlay")
+
+#@overlay/match by=overlay.all, expects="1+"
+---
+jobs:
+  #@overlay/match by=overlay.all, expects="1+"
+  _:
+    #! set runner
+    #@overlay/match missing_ok=True
+    runs-on: ubuntu-20.04
+
+    #! set checkout step at the first
+    steps:
+      #@overlay/match by=overlay.index(0)
+      #@overlay/insert before=True
+      - name: Checkout code
+        uses: actions/checkout@v2
