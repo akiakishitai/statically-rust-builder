@@ -10,8 +10,12 @@ name:  #@ workflow_name
     paths:
       - ".dockerignore"
       - ".dockleignore"
-      - ".github/workflows/*-dockerfile.yml"
+      - ".github/workflows/*dockerfile*.yml"
       - "**/Dockerfile*"
+  #! For caching docker layers in default branch.
+  push:
+    branches:
+      - "main"
 
 jobs:
   hadolint:
@@ -20,7 +24,7 @@ jobs:
       #! recrusively lint files named '*Dockerfile*' pattern
       #! https://github.com/reviewdog/action-hadolint/blob/985a0c74c649805d539d5fecc971e512f7f55410/script.sh#L34
       - name: hadolint
-        uses: reviewdog/action-hadolint@v1@v1.26
+        uses: reviewdog/action-hadolint@v1.26
         with:
           fail_on_error: true
           hadolint_flags: --failure-threshold warning
@@ -47,7 +51,7 @@ jobs:
       - name: Enable problem matcher
         run: echo "::add-matcher::.github/workflows/dockle-problem-matcher.json"
       - name: Run Dockle
-        continue-on-error: true
+        id: dockle
         uses: docker://goodwithtech/dockle:latest
         with:
           #! wrong 'localhost', it is container localhost.
@@ -58,7 +62,13 @@ jobs:
           DOCKLE_INSECURE: true
           DOCKLE_NON_SSL: true
       - name: Run Trivy
-        uses: aquasecurity/trivy-action@0.0.18
+        id: trivy
+        #@ pass_status = "fromJson('[ \"success\", \"failure\" ]')"
+        if: |
+          ${{ always() && contains(
+            (@= pass_status -@), steps.dockle.outcome
+          ) }}
+        uses: aquasecurity/trivy-action@0.1.0
         with:
           image-ref: (@= registry_image @):latest
           format: table
@@ -85,8 +95,6 @@ jobs:
       - with:
           #@overlay/replace
           push: true
-          #@overlay/remove
-          cache-to:
         env:
           #@yaml/text-templated-strings
           BUILD_IMAGE: (@= registry_push @)

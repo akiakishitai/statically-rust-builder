@@ -33,14 +33,14 @@ steps:
         path:  #@ buildx_cache
         key: "\
           ${{ env.CACHE_PREFIX }}-${{ env.CACHE_NAME }}-${{ github.ref }}-\
-          ${{ hashFiles('**/docker/Dockerfile') }}"
+          ${{ hashFiles('**/Dockerfile') }}"
         restore-keys: |
           ${{ env.CACHE_PREFIX }}-${{ env.CACHE_NAME }}-${{ github.ref }}-
           ${{ env.CACHE_PREFIX }}-${{ env.CACHE_NAME }}-
           ${{ env.CACHE_PREFIX }}-dockerfile-
       env:
         CACHE_PREFIX: ${{ runner.os }}-build
-        CACHE_NAME: code-server-dockerfile
+        CACHE_NAME: rust-dockerfile
 
   #! run docker buildx
   #!
@@ -52,7 +52,7 @@ steps:
       uses: docker/build-push-action@v2
       with:
         push: false
-        context: ./docker
+        context: "."
         platforms: |
           linux/amd64
           linux/arm64
