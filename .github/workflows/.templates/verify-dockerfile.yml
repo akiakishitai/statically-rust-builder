@@ -22,7 +22,7 @@ jobs:
     name: docker / hadolint
     steps:
       #! recrusively lint files named '*Dockerfile*' pattern
-      #! https://github.com/reviewdog/action-hadolint/blob/985a0c74c649805d539d5fecc971e512f7f55410/script.sh#L34
+      #!https://github.com/reviewdog/action-hadolint/blob/985a0c74c649805d539d5fecc971e512f7f55410/script.sh#L34
       - name: hadolint
         uses: reviewdog/action-hadolint@v1.26
         with:

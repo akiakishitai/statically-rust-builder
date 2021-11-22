@@ -13,4 +13,3 @@ jobs:
         uses: reviewdog/action-yamllint@v1.4
         with:
           fail_on_error: true
-
