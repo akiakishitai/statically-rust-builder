@@ -1,5 +1,9 @@
 # Statically Rust Builder
 
+[![Docker Build](https://github.com/akiakishitai/statically-rust-builder/actions/workflows/verify-dockerfile.yml/badge.svg)](https://github.com/akiakishitai/statically-rust-builder/actions/workflows/verify-dockerfile.yml)
+[![Lint yaml](https://github.com/akiakishitai/statically-rust-builder/actions/workflows/lint-yaml.yml/badge.svg)](https://github.com/akiakishitai/statically-rust-builder/actions/workflows/lint-yaml.yml)
+[![License](https://img.shields.io/github/license/akiakishitai/statically-rust-builder)](LICENSE)
+
 Docker image for compiling a statically linked rust binaries with musl.
 
 ## Installation
@@ -10,20 +14,29 @@ Docker image for compiling a statically linked rust binaries with musl.
 Use `podman` or `docker`.
 
 ```bash
-podman build https://github.com/akiakishitai/statically-rust-builder.git
-
-podman build git://github.com/akiakishitai/statically-rust-builder
+podman build --tag statically-rust-builder https://github.com/akiakishitai/statically-rust-builder.git
 ```
 
 ## Usage
 
 ```bash
 cd /path/to/rust/project
-
-podman run --rm -it --mount=type=bind,src="$(pwd)",dst=/project localhost/akiakishitai/statically-rust-builder
+podman run --rm -it \
+    --mount=type=bind,src="$(pwd)",dst=/project \
+    localhost/statically-rust-builder
 ```
 
-The built executable is located in the `$PWD/target/release` directory.
+***
+
+The built static rust binary is located in the `$PWD/target/release` directory.
+
+⚠️ When you run the built static rust binary, you may need to specify the location of the SSL certificate.
+
+```bash
+# Debian
+export SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+export SSL_CERT_DIR=/etc/ssl/certs
+```
 
 ### Advanced usage
 
@@ -35,7 +48,7 @@ podman run --rm -it \
     --mount=type=volume,src=cargo-cache,dst=/usr/local/cargo/git \
     --mount=type=volume,src=sccache,dst=/var/cache/sccache \
     --mount=type=bind,src="$(pwd)",dst=/project \
-    localhost/akiakishitai/statically-rust-builder
+    localhost/statically-rust-builder
 ```
 
 ---
@@ -71,5 +84,5 @@ Installed static C libraries:
 
 ## Inspiration
 
-* [emk/rust-musl-builder](https://github.com/emk/rust-musl-builder)
-* [clux/muslrust](https://github.com/clux/muslrust)
+* [emk/rust-musl-builder](https://github.com/emk/rust-musl-builder): The famous Docker image that statically compiles rust binaries.
+* [clux/muslrust](https://github.com/clux/muslrust): Similarly, the Docker image that statically compiles rust binaries.
