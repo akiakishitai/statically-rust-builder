@@ -8,6 +8,7 @@ jobs:
     name: yaml / lint
     steps:
     - name: Checkout code
+      id: checkout
       uses: actions/checkout@v2
     - name: yamllint
       uses: reviewdog/action-yamllint@v1.4

@@ -1,0 +1,45 @@
+#@ load("@ytt:overlay", "overlay")
+---
+#@ workflow_name = "Compare workflows from templates"
+name:  #@ workflow_name
+
+"on":
+  pull_request:
+    paths:
+      - ".github/workflows/.templates/**"
+
+permissions:
+  contents: write
+
+jobs:
+  ytt:
+    name: ytt / compare
+    steps:
+      - name:  #@ workflow_name
+        uses: docker://gerritk/ytt:v0.38.0
+        with:
+          args: >-
+            template
+            --file=.github/workflows/.templates
+            --output-files=.github/workflows/
+      #! Required personal access token with `workflows` scope
+      - name: Auto commit
+        uses: stefanzweifel/git-auto-commit-action@v4.12.0
+        with:
+          commit_message: "ci: generate workflows from templates"
+          file_pattern: .github/workflows/*
+
+#! Overlay
+#@ pattern = {"name": workflow_name}
+#@overlay/match by=overlay.subset(pattern)
+---
+jobs:
+  ytt:
+    steps:
+      #@overlay/match by=overlay.subset({"id": "checkout"})
+      - id: checkout
+        #@overlay/match missing_ok=True
+        with:
+          #! When checking out, explicitly specify the correct branch.
+          #!https://github.com/stefanzweifel/git-auto-commit-action#checkout-the-correct-branch
+          ref: ${{ github.head_ref }}

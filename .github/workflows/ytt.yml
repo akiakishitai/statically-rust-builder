@@ -1,0 +1,26 @@
+name: Compare workflows from templates
+"on":
+  pull_request:
+    paths:
+    - .github/workflows/.templates/**
+permissions:
+  contents: write
+jobs:
+  ytt:
+    name: ytt / compare
+    steps:
+    - name: Checkout code
+      id: checkout
+      uses: actions/checkout@v2
+      with:
+        ref: ${{ github.head_ref }}
+    - name: Compare workflows from templates
+      uses: docker://gerritk/ytt:v0.38.0
+      with:
+        args: template --file=.github/workflows/.templates --output-files=.github/workflows/
+    - name: Auto commit
+      uses: stefanzweifel/git-auto-commit-action@v4.12.0
+      with:
+        commit_message: 'ci: generate workflows from templates'
+        file_pattern: .github/workflows/*
+    runs-on: ubuntu-20.04
