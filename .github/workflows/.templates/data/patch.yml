@@ -16,4 +16,5 @@ jobs:
       #@overlay/match by=overlay.index(0)
       #@overlay/insert before=True
       - name: Checkout code
+        id: checkout
         uses: actions/checkout@v2
