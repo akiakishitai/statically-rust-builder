@@ -22,8 +22,8 @@ jobs:
         fail_on_error: true
         hadolint_flags: --failure-threshold warning
     runs-on: ubuntu-20.04
-  scan_image:
-    name: docker / vulnerability scan
+  build:
+    name: docker / build
     services:
       registry:
         image: registry:2
@@ -74,25 +74,65 @@ jobs:
       run: |
         rm -rf /tmp/.buildx-cache
         mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+    - name: Check images
+      continue-on-error: true
+      run: |
+        echo "--- Registry ---"
+        curl -Ss -X GET http://localhost:5000/v2/_catalog
+        echo "--- Local ---"
+        docker image ls
+    - name: Save docker image
+      run: |
+        docker pull localhost:5000/${{ github.repository }}
+        docker image ls
+        docker save --output /tmp/my_built_image.tar localhost:5000/${{ github.repository }}
+    - name: Upload built image
+      uses: actions/upload-artifact@v2
+      with:
+        name: my_built_image
+        path: /tmp/my_built_image.tar
+        retention-days: 7
+    runs-on: ubuntu-20.04
+  scan_image:
+    name: docker / vulnerability scan
+    needs: build
+    steps:
+    - name: Checkout code
+      id: checkout
+      uses: actions/checkout@v2
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v1
+    - name: Set up Docker Buildx
+      id: buildx
+      uses: docker/setup-buildx-action@v1
+      with:
+        driver-opts: network=host
+    - name: Download built image
+      uses: actions/download-artifact@v2
+      with:
+        name: my_built_image
+        path: /tmp
+    - name: Load image
+      id: load
+      run: |
+        docker load --input /tmp/my_built_image.tar
+        docker image ls
     - name: Enable problem matcher
       run: echo "::add-matcher::.github/workflows/dockle-problem-matcher.json"
     - name: Run Dockle
       id: dockle
       uses: docker://goodwithtech/dockle:latest
       with:
-        args: --exit-code 1 registry:5000/${{ github.repository }}:latest
+        args: --exit-code 1 localhost:5000/${{ github.repository }}:latest
       env:
         DOCKLE_INSECURE: true
         DOCKLE_NON_SSL: true
     - name: Run Trivy
       id: trivy
-      if: |
-        ${{ always() && contains(
-          fromJson('[ "success", "failure" ]'), steps.dockle.outcome
-        ) }}
+      if: ${{ always() && steps.load.outcome == 'success' }}
       uses: aquasecurity/trivy-action@0.1.0
       with:
-        image-ref: registry:5000/${{ github.repository }}:latest
+        image-ref: localhost:5000/${{ github.repository }}:latest
         format: table
         exit-code: 1
         ignore-unfixed: true
@@ -100,4 +140,50 @@ jobs:
         severity: CRITICAL,HIGH
       env:
         TRIVY_NON_SSL: true
+    runs-on: ubuntu-20.04
+  test:
+    name: docker / compile test
+    needs: build
+    steps:
+    - name: Checkout code
+      id: checkout
+      uses: actions/checkout@v2
+      with:
+        repository: volta-cli/volta
+        ref: v1.0.5
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v1
+    - name: Set up Docker Buildx
+      id: buildx
+      uses: docker/setup-buildx-action@v1
+    - name: Download built image
+      uses: actions/download-artifact@v2
+      with:
+        name: my_built_image
+        path: /tmp
+    - name: Load image
+      id: load
+      run: |
+        docker load --input /tmp/my_built_image.tar
+        docker image ls
+    - name: Compile test
+      run: |
+        docker run --rm \
+          --mount=type=bind,src="$(pwd)",dst=/project \
+          localhost:5000/${{ github.repository }}
+    - name: Validate static binary
+      run: |
+        file $PWD/target/release/volta
+        ldd $PWD/target/release/volta
+
+        if [ "$(objdump -p $PWD/target/release/volta | grep -c 'NEEDED')" -eq 0 ]; then
+            echo "Static!"
+        else
+            echo "Dynamic!!!"
+            exit 1
+        fi
+    - name: Check built exectable
+      run: |
+        $PWD/target/release/volta --version && \
+        $PWD/target/release/volta setup --verbose
     runs-on: ubuntu-20.04

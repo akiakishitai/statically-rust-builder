@@ -29,9 +29,8 @@ jobs:
           fail_on_error: true
           hadolint_flags: --failure-threshold warning
 
-  scan_image:
-    name: docker / vulnerability scan
-
+  build:
+    name: docker / build
     services:
       #! docker private registry
       #@ registry_image = "registry:5000/" + data.values.env.image
@@ -40,13 +39,52 @@ jobs:
         image: registry:2
         ports:
           - 5000:5000
-
     #@yaml/text-templated-strings
     steps:
-      #! Build image
       -  #@ template.replace(data.values.steps.setup_buildx)
       -  #@ template.replace(data.values.steps.run_buildx)
       -  #@ template.replace(data.values.steps.move_cache)
+      #! Upload image
+      #@ built_image_name = "my_built_image"
+      #@ built_image_path = "/tmp/" + built_image_name + ".tar"
+      - name: Check images
+        continue-on-error: true
+        run: |
+          echo "--- Registry ---"
+          curl -Ss -X GET http://localhost:5000/v2/_catalog
+          echo "--- Local ---"
+          docker image ls
+      - name: Save docker image
+        run: |
+          docker pull (@= registry_push @)
+          docker image ls
+          docker save --output (@= built_image_path @) (@= registry_push @)
+      - name: Upload built image
+        uses: actions/upload-artifact@v2
+        with:
+          name: (@= built_image_name @)
+          path: (@= built_image_path @)
+          retention-days: 7
+
+  scan_image:
+    name: docker / vulnerability scan
+    needs: build
+    #@yaml/text-templated-strings
+    steps:
+      #! Load image
+      -  #@ template.replace(data.values.steps.setup_buildx)
+      - &download_image
+        name: Download built image
+        uses: actions/download-artifact@v2
+        with:
+          name: (@= built_image_name @)
+          path: /tmp
+      - &loading_image
+        name: Load image
+        id: load
+        run: |
+          docker load --input (@= built_image_path @)
+          docker image ls
       #! Security Check
       - name: Enable problem matcher
         run: echo "::add-matcher::.github/workflows/dockle-problem-matcher.json"
@@ -55,7 +93,9 @@ jobs:
         uses: docker://goodwithtech/dockle:latest
         with:
           #! wrong 'localhost', it is container localhost.
-          args: --exit-code 1 (@= registry_image @):latest
+          args: >-
+            --exit-code 1
+            (@= registry_push @):latest
         env:
           #! use HTTP option:
           #! https://github.com/goodwithtech/dockle/blob/master/cmd/dockle/main.go#L40
@@ -63,14 +103,10 @@ jobs:
           DOCKLE_NON_SSL: true
       - name: Run Trivy
         id: trivy
-        #@ pass_status = "fromJson('[ \"success\", \"failure\" ]')"
-        if: |
-          ${{ always() && contains(
-            (@= pass_status -@), steps.dockle.outcome
-          ) }}
+        if: ${{ always() && steps.load.outcome == 'success' }}
         uses: aquasecurity/trivy-action@0.1.0
         with:
-          image-ref: (@= registry_image @):latest
+          image-ref: (@= registry_push @):latest
           format: table
           exit-code: 1
           ignore-unfixed: true
@@ -79,14 +115,45 @@ jobs:
         env:
           TRIVY_NON_SSL: true
 
+  test:
+    name: docker / compile test
+    needs: build
+    #@yaml/text-templated-strings
+    steps:
+      -  #@ template.replace(data.values.steps.setup_buildx)
+      - *download_image
+      - *loading_image
+      - name: Compile test
+        run: |
+          docker run --rm \
+            --mount=type=bind,src="$(pwd)",dst=/project \
+            (@= registry_push @)
+      - name: Validate static binary
+        #@ build_bin = "$PWD/target/release/volta"
+        run: |
+          file (@= build_bin @)
+          ldd (@= build_bin @)
+
+          if [ "$(objdump -p (@= build_bin @) | grep -c 'NEEDED')" -eq 0 ]; then
+              echo "Static!"
+          else
+              echo "Dynamic!!!"
+              exit 1
+          fi
+      - name: Check built exectable
+        run: |
+          (@= build_bin @) --version && \
+          (@= build_bin @) setup --verbose
+
 #@ pattern = {"name": workflow_name}
 #@overlay/match by=overlay.subset(pattern)
 ---
+#@yaml/text-templated-strings
 jobs:
-  scan_image:
+  build:
     steps:
       #@overlay/match by=overlay.subset({"id": "buildx"})
-      - id: buildx
+      -
         #@overlay/match missing_ok=True
         with:
           #! without network=host, failed to connection refused
@@ -96,5 +163,26 @@ jobs:
           #@overlay/replace
           push: true
         env:
-          #@yaml/text-templated-strings
           BUILD_IMAGE: (@= registry_push @)
+  scan_image:
+    steps:
+      #@overlay/match by=overlay.subset({"id": "buildx"})
+      -
+        #@overlay/match missing_ok=True
+        with:
+          #! without network=host, failed to connection refused
+          driver-opts: network=host
+      #@overlay/match by=overlay.subset({"name": "Cache Docker layers"})
+      #@overlay/remove
+      - unused cache
+  test:
+    steps:
+      #@overlay/match by=overlay.subset({"id": "checkout"})
+      -
+        #@overlay/match missing_ok=True
+        with:
+          repository: volta-cli/volta
+          ref: v1.0.5
+      #@overlay/match by=overlay.subset({"name": "Cache Docker layers"})
+      #@overlay/remove
+      - unused cache
