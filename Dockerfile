@@ -35,6 +35,7 @@ FROM docker.io/library/rust:${RUST_VERSION}-alpine AS rust-builder
 # Set up environment variables
 ENV \
   CC=musl-gcc \
+  CXX=musl-g++ \
   ### sccache
   RUSTC_WRAPPER=/usr/local/bin/sccache \
   SCCACHE_DIR=/var/cache/sccache \
@@ -55,12 +56,14 @@ ENV \
 RUN \
   # Install packages for building
   apk --no-cache add \
+    g++ \
     musl-dev \
     openssl-dev \
     openssl-libs-static \
     zlib-static && \
   # Make the symlink from musl-gcc to /usr/bin/ARCH-alpine-linux-musl-gcc
   ln -s "/usr/bin/$(uname --machine)-alpine-linux-musl-gcc" "/usr/bin/musl-gcc" && \
+  ln -s "/usr/bin/$(uname --machine)-alpine-linux-musl-g++" "/usr/bin/musl-g++" && \
   # Caching directories
   for cachedir in "${SCCACHE_DIR}" "${CARGO_HOME}/git" "${CARGO_HOME}/registry"; do \
     mkdir -m 777 -p "$cachedir"; \
