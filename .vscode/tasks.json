@@ -5,12 +5,7 @@
       "label": "Generate Github Workflows",
       "type": "shell",
       "detail": "from YAML template files",
-      "command": "ytt",
-      "args": [
-        "template",
-        "--file=.github/workflows/.templates",
-        "--output-files=.github/workflows/"
-      ],
+      "command": "${workspaceFolder}/.github/ytt.sh",
     },
     {
       "label": "Lint yaml",

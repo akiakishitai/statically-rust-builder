@@ -15,13 +15,12 @@ jobs:
   ytt:
     name: ytt / compare
     steps:
+      #! https://hub.docker.com/r/gerritk/ytt
       - name:  #@ workflow_name
         uses: docker://gerritk/ytt:v0.38.0
         with:
-          args: >-
-            template
-            --file=.github/workflows/.templates
-            --output-files=.github/workflows/
+          entrypoint: /bin/sh
+          args: .github/ytt.sh
       #! Required personal access token with `workflows` scope
       - name: Auto commit
         uses: stefanzweifel/git-auto-commit-action@v4.12.0

@@ -1,0 +1,19 @@
+#@ load("@ytt:overlay", "overlay")
+
+#@data/values-schema
+---
+#@overlay/match missing_ok=True
+trigger:
+  paths: [""]
+
+#! Replace the cache
+#@overlay/match missing_ok=True
+replace_cache:
+  name: Replace the cache
+  id: replace-cache
+  run: |
+    rm -rf ${CACHE_DEST}
+    mv ${CACHE_SRC} ${CACHE_DEST}
+  env:
+    CACHE_SRC: /tmp/new-cache
+    CACHE_DEST: /tmp/cache

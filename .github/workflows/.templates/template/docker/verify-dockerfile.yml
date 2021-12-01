@@ -1,0 +1,119 @@
+#@ load("@ytt:data", "data")
+#@ load("@ytt:overlay", "overlay")
+#@ load("@ytt:template", "template")
+#@ load("@workflow:docker.lib.yml", "docker")
+---
+#@ workflow_name = "Docker Build"
+name:  #@ workflow_name
+
+"on":
+  pull_request:
+    paths:
+      - ".dockerignore"
+      - ".dockleignore"
+      - ".github/workflows/*dockerfile*.yml"
+      - "**/Dockerfile*"
+  #! For caching docker layers in default branch.
+  push:
+    branches:
+      - "main"
+
+jobs:
+  hadolint:
+    name: docker / hadolint
+    steps:
+      -  #@ template.replace([data.values.hadolint])
+
+  build:
+    name: docker / build
+    services:
+      #! docker private registry
+      registry:
+        image: registry:2
+        ports:
+          - 5000:5000
+    #@yaml/text-templated-strings
+    steps:
+      -  #@ template.replace(docker.build())
+      - name: Check images
+        continue-on-error: true
+        run: |
+          echo "--- Registry ---"
+          curl -Ss -X GET http://localhost:5000/v2/_catalog
+          echo "--- Local ---"
+          docker image ls
+      - name: Save docker image
+        run: |
+          docker pull (@= data.values.docker_buildx.env.BUILDX_IMAGE @)
+          docker save \
+            --output (@= data.values.upload_artifact["with"].path @) \
+            (@= data.values.docker_buildx.env.BUILDX_IMAGE @)
+      -  #@ data.values.upload_artifact
+
+  scan_image:
+    name: docker / vulnerability scan
+    needs: build
+    #@yaml/text-templated-strings
+    steps:
+      #! Load image
+      -  #@ template.replace(docker.build(isSetupOnly=True))
+      -  #@ template.replace(docker.loading())
+      #! Security Check
+      -  #@ template.replace(docker.scan(".github/workflows/dockle-problem-matcher.json"))
+
+  test:
+    name: docker / compile test
+    needs: build
+    #@yaml/text-templated-strings
+    steps:
+      -  #@ template.replace(docker.build(isSetupOnly=True))
+      -  #@ template.replace(docker.loading())
+      - name: Compile test
+        run: |
+          docker run --rm \
+            --mount=type=bind,src="$(pwd)",dst=/project \
+            (@= data.values.docker_buildx.env.BUILDX_IMAGE @)
+      - name: Validate static binary
+        #@ build_bin = "$PWD/target/release/volta"
+        run: |
+          file (@= build_bin @)
+          ldd (@= build_bin @)
+
+          if [ "$(objdump -p (@= build_bin @) | grep -c 'NEEDED')" -eq 0 ]; then
+              echo "Static!"
+          else
+              echo "Dynamic!!!"
+              exit 1
+          fi
+      - name: Check built exectable
+        run: |
+          (@= build_bin @) --version && \
+          (@= build_bin @) setup --verbose
+
+#@ pattern = {"name": workflow_name}
+#@overlay/match by=overlay.subset(pattern)
+---
+#@yaml/text-templated-strings
+jobs:
+  build:
+    steps:
+      #@overlay/match by=overlay.subset({"id": "docker-buildx"})
+      - with:
+          #@overlay/replace
+          push: true
+  scan_image:
+    steps:
+      #@overlay/match by=overlay.subset({"name": "Cache Docker layers"})
+      #@overlay/remove
+      - unused cache
+  test:
+    steps:
+      #@overlay/match by=overlay.subset({"id": "checkout"})
+      -
+        #@overlay/match missing_ok=True
+        with:
+          repository: volta-cli/volta
+          ref: v1.0.5
+      #@overlay/match by=overlay.subset({"name": "Cache Docker layers"})
+      #@overlay/remove
+      - unused cache

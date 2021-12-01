@@ -10,3 +10,8 @@ rules:
     require-starting-space: false
   line-length:
     max: 100
+  indentation:
+    ignore: &ytt_lib |
+      .github/workflows/.templates/**/_ytt_lib/**/*.yml
+  comments-indentation:
+    ignore: *ytt_lib
