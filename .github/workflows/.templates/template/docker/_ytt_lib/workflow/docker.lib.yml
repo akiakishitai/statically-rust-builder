@@ -1,0 +1,39 @@
+#@ load("@ytt:data", "data")
+#@ load("@ytt:template", "template")
+#@ load("@ytt:struct", "struct")
+
+---
+#! Docker Buldx setup and run
+#@ def _build_image(isSetupOnly=False):
+  - name: Set up QEMU
+    uses: docker/setup-qemu-action@v1
+  -  #@ data.values.setup_docker_buildx
+  -  #@ data.values.cache
+  #@ if not isSetupOnly:
+  -  #@ data.values.docker_buildx
+  -  #@ data.values.replace_cache
+  #@ end
+#@ end
+
+#@ def _load_image():
+  -  #@ data.values.download_artifact
+  - name: Load image
+    id: docker-load
+    #@yaml/text-templated-strings
+    run: |
+      docker load --input (@= data.values.upload_artifact["with"].path @)
+      docker image ls
+#@ end
+
+#@ def _scan_image(matcher):
+  #@ if/end matcher:
+  #@yaml/text-templated-strings
+  - name: Enable problem matcher
+    run: echo "::add-matcher::(@= matcher @)"
+  -  #@ data.values.dockle
+  -  #@ data.values.trivy
+#@ end
+
+#! EXPORT Module
+---
+#@ docker = struct.make(build=_build_image, loading=_load_image, scan=_scan_image)

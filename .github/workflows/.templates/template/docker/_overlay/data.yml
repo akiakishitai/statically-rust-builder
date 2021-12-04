@@ -1,0 +1,50 @@
+#@ load("@ytt:template", "template")
+---
+#! Const Variables
+#@ docker_image = "localhost:5000/${{ github.repository }}"
+#@ artifact_name = "my_built_image"
+
+#@data/values
+#@yaml/text-templated-strings
+---
+cache:
+  name: Cache Docker layers
+  with:
+    path: &cache-path /tmp/.buildx-cache
+    key: ${{ runner.os }}-build-rust-dockerfile-${{ hashFiles('**/Dockerfile') }}
+    restore-keys: |
+      ${{ runner.os }}-build-rust-dockerfile-
+docker_buildx:
+  env:
+    BUILDX_IMAGE: (@= docker_image @)
+    BUILDX_CACHE_FROM: *cache-path
+    BUILDX_CACHE_TO: &cache-new /tmp/.buildx-cache-new
+replace_cache:
+  env:
+    CACHE_SRC: *cache-new
+    CACHE_DEST: *cache-path
+dockle:
+  env:
+    DOCKER_IMAGE: &scan_image (@= docker_image @):latest
+trivy:
+  env:
+    DOCKER_IMAGE: *scan_image
+upload_artifact:
+  name: Upload built image
+  with:
+    name: (@= artifact_name @)
+    path: /tmp/(@= artifact_name @).tar
+download_artifact:
+  name: Download built image
+  with:
+    name: (@= artifact_name @)
+    path: /tmp
+
+#@data/values
+---
+trigger:
+  paths:
+    - ".dockerignore"
+    - ".dockleignore"
+    - ".github/workflows/*dockerfile*.yml"
+    - "**/Dockerfile*"
